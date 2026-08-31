@@ -1,17 +1,15 @@
 
-"""pcode
+import pandas as pd
+"""
 MVP:
 1. calcluate projecteed cost per wear based on user habits
 2. give the best recommendation
 
 """
-import pandas as pd
-
-# next step: get ur csv, edit it a bit, read it here
 
 
 def clean_data(col: str) -> str:
-    # strip potential symbols from user's inputs from excel
+    # strip potential symbols from user's inputs from their excel data
     cleaned = str(col).strip(' $').lower()
     return cleaned
 
@@ -19,107 +17,153 @@ def clean_data(col: str) -> str:
 def clean_df(wardrobe_df: pd.DataFrame) -> pd.DataFrame:
     clean = wardrobe_df.copy()
     # prevent crashes:
-    # not affected by excel dropdown rules
     clean = clean.fillna('n/a')
     for col in clean:
         clean[col] = clean[col].apply(clean_data)
     return clean
 
-#def make_input_df(category: pd.Series, price: pd.Series, occasions: pd.Series) -> pd.DataFrame:
-    # constructs a df based on user inputs
-    # for MVP, we only pick the main category and occasion
-    # since all are pd.series, how do we type cast to float vs str?
-def make_dict_potential(category: str, price: float, occasions: str) -> dict[str, str | float]:
-    # if you do inpputs in helper directly, ur helper takes nothing and thats the antithesis of a function
-    # take inputs in main, only construct dict
+
+def make_dict_potential(name: str, category: str, price: float, occasions: str) -> dict[str, str | float]:
     # backlog: you could take a series for eact variable in V2 for mutiple occasions tag
     return {
+        'name': name,
         'category': category,
         'price': price,
         'occasions': occasions
     }
 
-# this is not needed i think
-def categorize_potential_piece() -> pd.Series:
-    # prompt user to fill out a few critical labels (category, price, occasions)
-    # Question: should this printing happen here or main? i think main
-    print('To help you decide, I need a couple of details')
-    print('')
-    # piece_info is not a str. we need to construct a DF before we call clean_df on it.
-    make_dict_potential()
-    clean_df(piece_info)
-    return 0
-
 
 def match_potential_to_similar_owned(
-        owned_df: pd.DataFrame, maybe_buy: dict[str, str | float]
-        ) -> list[Any]:
-    # returns a list of three most similar items and their usage scores
-    # handle the interesting problem of 4 basic tees having a higher score than
-    # 1 additional babydoll top
-    # this should not only compare use history to the respective dilemma piece,
-    # now its wears_per_year
-    if
-    return []
+        wardrobe: pd.DataFrame, maybe_buy: dict[str, str | float]
+        ) -> pd.DataFrame:
+    # scoring: 4 basic tees have a higher score than 1 additional babydoll top
+    mask = (
+        (wardrobe["category"] == maybe_buy["category"])
+        & (wardrobe["occasions"] == maybe_buy["occasions"])
+    )
+    same_df = wardrobe.loc[mask]
+    # checks if "potential buy" is a unique item or not for user's closet
+    if same_df.empty:
+        return same_df
+    # the top 3 is the ones closest in price and use scores
+    same_df['price_diff'] = (same_df['price'] - maybe_buy['price']).abs()
+    # returns the top three most similar items based on price, category, occasion
+    return same_df.nsmallest(3, "price_diff")
+    # backlog: calc reduandancy score
 
 
-def calculate_average_use_per_item(dilemma_piece: str) -> float:
-    # divide by the 'quantity' to get per item results
-    # takes labels: quantity, category, occasions, price, weekly_wears (1 item)
-    # it should also generate insights for yearly use (we display in the explanation)
-    # this solves the problem of basics in higher quantity but higher in usage than an occasial item
-
-    score = dilemma_piece
-    return 0
-
-# optional: calc reduandancy score
+def calculate_yearly_cpw(wardrobe: pd.DataFrame) -> pd.DataFrame:
+    # cpw is the cost per wear of an item
+    # calculates this per item
+    return round((wardrobe['price'] / wardrobe['wears_per_year']), 2)
 
 
-def calculate_cost_per_wear() -> float:
-    return 0
+def calculate_purchase_cpw(rank: pd.DataFrame) -> pd.DataFrame:
+    # can be more like total efficacy of an order and highlight the bad choice
+    rank['yearly_cpw'] = calculate_yearly_cpw(rank)
+    sort_df = rank.sort_values('yearly_cpw', ascending=True)
+    return sort_df
 
 
-def calculate_total_purchase_efficacy() -> pd.DataFrame:
-    # this could be a menu-equse layout of your items and cost-per-use, or it
-    # can be more like total efficacy of an order and highlight the bad choices
-    # choose the easiest on MVP
-    return pd.DataFrame()
+def calculate_marginal_value(similar_df: pd.DataFrame) -> float | None:
+    # calculate average MV of owned similar items
+    if similar_df.empty:
+        return None
+    return (similar_df['wears_per_year'].sum()) / (similar_df['quantity'].sum())
+
+# Todo: calc_score()
+# implememnt in V2: def wardrobe_wrapped(wardrobe: pd.DataFrame) -> None:
+def make_decision(similar: pd.DataFrame, mv: float, cpw: float) -> str:
+    if similar.empty:
+        return 'I do not have any data on this item'
+    owned_mv = calculate_marginal_value(similar)
+    owned_cpw = calculate_purchase_cpw(similar).sum
+    # TODO: past session: the probelm is that owned_mv is the value of another item
+    # this means we should not have mv but rather look at ownedmv alone
+    # get iloc of the 3 most similar item,
+    avg_cpw = owned_cpw / 
+    return decision
 
 
-def print_recommendation_results() -> str:
+def print_recommendation(potential: str, wardrobe: pd.DataFrame) -> None:
     # this prints info like cost_per_wear (CPW) along with items, highlights
     # bad usage items, and tells user about the CPW of a particular bad item
-    return ''
+    # prints the explanation chunk of the menu from main
+    print(f'The average cost per wear of {potential} is {calculate_total_purchase_efficacy(wardrobe)}')
+    print(f'I would {decision} based on these reasons: {}')
 
 
 def main() -> None:
-    # make this pretty later
     print()
-    print('----------------------------------------------')
-    print('Welcome to your virtual shopping bestie!/n')
-    print('----------------------------------------------')
+    print("=" * 54)
+    print("               SHOULD I BUY THIS?")
+    print("          your virtual shopping bestie")
+    print("=" * 54)
+    print("\nFirst, let's load your closet.\n")
     user_excel = input(
-        " Please enter the name of your Excel file with .xlsx: /n ex: " \
-        "my_clothes.xlsx"
-                       )
-    # for testing:yunying_wardrobe_tester.xlsx
-    user_wardrobe = pd.read_excel(user_excel)
-    potential_buy = input('Enter the piece you want to buy: ')
+        "Enter your wardrobe Excel filename (.xlsx)\n"
+        "Example: my_clothes.xlsx\n"
+        "> "
+    ).strip()
+    # check that the user file is uploaded successfully
+    try:
+        user_wardrobe = pd.read_excel(user_excel)
+        user_df = user_wardrobe.copy()
+    except FileNotFoundError:
+        print(f'Your file {user_excel} does not exist. Please try again')
+    print("\n✓ Closet loaded.")
+    print("Now tell me about the piece you're eyeing.\n")
+    potential_buy = input(
+        "What are you thinking about buying?\n"
+        "> "
+    ).strip()
     category = input(
-        'Enter what category of clothing your piece is:/n (Top,Sweater' \
-        'Outerwear,Pants,Shorts,Skirt Dress,Activewear) '
+        "\nCategory\n"
+        "(Top, Sweater, Outerwear, Pants, Shorts, Skirt, "
+        "Dress, Activewear)\n"
+        "> "
+    ).strip()
+    price = float(
+        input(
+            "\nPrice ($)\n"
+            "> "
         )
-    price = input('Enter the price of your item ')
+    )
     occasions = input(
-        'Enter the main occasion you anticipate wearing this for '
-        )
-    make_dict_potential(category, float(price), occasions)
-    # call make_df to make a comparision df of the potential_buy to user_wardrobe
-    # functions use this variable
-    # Todo: call all functions
-    # make a decision variable to store your decision and to print that
-    print()
-    print("Enjoy your new fits!")
+        "\nWhat is the main occasion you'd wear it for?\n"
+        "> "
+    ).strip()
+    maybe_buy = make_dict_potential(potential_buy, category, price, occasions)
+    print("\n" + "-" * 54)
+    print("                    THE DILEMMA")
+    print("-" * 54)
+    print(f"\nPiece:    {potential_buy}")
+    print(f"Category: {category}")
+    print(f"Price:    ${price:.2f}")
+    print(f"Occasion: {occasions}")
+    print("\nChecking this against what you actually wear...")
+    # TODO:
+    similar_items = match_potential_to_similar_owned(
+         user_df,
+         maybe_buy
+    )
+    # note: calc_marginal_v() can reeturn None! this should be explained in main
+    decision, reason = make_decision()
+    #     user_wardrobe,
+    #     maybe_buy,
+    #     similar_items
+    # )
+    #
+    # print_recommendation(
+    #     potential_buy,
+    #     maybe_buy,
+    #     similar_items,
+    #     decision,
+    #     reason
+    # )
+    print("\n" + "-" * 54)
+    print("Your closet has receipts.")
+    print("-" * 54)
 
 
 if __name__ == '__main__':
